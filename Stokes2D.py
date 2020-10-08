@@ -22,8 +22,8 @@ xmin = AX[0];
 xmax = AX[1];
 ymin = AX[2];
 ymax = AX[3];
-nx = 4;
-ny = 4;
+nx = 1000;
+ny = 1000;
 nNodes = nx*ny;
 
 Kappa = 1.0;
@@ -66,14 +66,13 @@ no_eq = Num_P[-1]+1;
 # =========================================================================
 Eta_n = np.ones(nP)             # viscosity for normal stress nodes, defined on the P grid
 Eta_s = np.ones(nNodes)         # visc. for shear stress nodes, defined on the reference grid
-#
-# NumEta.n = 1:length(Eta_n);
-# NumEta.s = 1:length(Eta_s);
+rho = 1.0*np.ones(nP)
+g = [0.0, 0.0]
 
 ## ========================================================================
 #                   Debugging plt.plot - numbering etc...
 # =========================================================================
-if True:
+if False:
     plt.plot(XX,YY,'-k',c=[.5,.5,.5])
     plt.plot(XX.T,YY.T,'-k',c=[.5,.5,.5])
     plt.plot(XX,YY,'sr',markersize=11,markeredgewidth=0,markerfacecolor=[.8,.8,.0])
@@ -119,7 +118,8 @@ bound_Ind_VyLeft = (Num_Vy[0+(nx+1)*np.arange(1,ny-2+1)]);                      
 bound_Ind_VyRight = (Num_Vy[nx+(nx+1)*np.arange(1,ny-2+1)]);                         # inner right
 
 # P boundaries
-bound_Ind_P = (Num_P[arr([0,nx-2,nP-1,nP-1-(nx-1)+1])]);
+# bound_Ind_P = (Num_P[arr([0,nx-2,nP-1,nP-1-(nx-1)+1])]);
+bound_Ind_P = (Num_P[arr([nP-1-(nx-1)+1])]);
 Xf = XXsP.T.flatten()
 Yf = YYsP.T.flatten()
 plt.plot(Xf[bound_Ind_P-Num_Vy[-1]-1],Yf[bound_Ind_P-Num_Vy[-1]-1],'.w')
@@ -139,7 +139,7 @@ bound_Val_VyLeft    =  0.0*np.ones(bound_Ind_VyLeft.shape);
 bound_Val_VyRight   =  0.0*np.ones(bound_Ind_VyRight.shape);
 
 # P values
-bound_Val_P         = np.ones(bound_Ind_P.shape);
+bound_Val_P         = np.zeros(bound_Ind_P.shape);
 
 # Fill the IndAll and ValAll boundary vectors
 # =========================================================================
@@ -251,6 +251,7 @@ for i in range(nVx):
         Pl_Coeffs.E= -Kappa/dx;           Pl_Coeffs.W= Kappa/dx;
 
 
+
         ## ================================================================
         #               Fill local and global sparse triplets
         # =================================================================
@@ -267,6 +268,11 @@ for i in range(nVx):
         Vsp[nzC+np.arange(0,11)]  = loc_V;
 
         nzC = nzC + no_eq_l;
+
+        ## ================================================================
+        #               Add gravity term to right-hand side
+        # =================================================================
+        b[eqC] -= 0.5*( rho[Pl.E] + rho[Pl.W] )*g[0]
     else:            # Boundary nodes
         Jsp[nzC] = Num_Vx[i];
         Isp[eqC] = nzC#Num_Vx[i];
@@ -330,6 +336,8 @@ for i in range(nVy):
         Vsp[nzC+np.arange(0,11)]  = loc_V;
 
         nzC = nzC + len(loc_J);
+
+        b[eqC] -= 0.5*( rho[Pl.N] + rho[Pl.S] )*g[1]
     else: # Boundary nodes
         Jsp[nzC] = Num_Vy[i];
         Isp[eqC] = nzC#Num_Vy[i];
@@ -395,13 +403,13 @@ print('Assembly: %.1fs\n' % (time.time()-tic))
 # Isp = [];
 # Jsp = [];
 # V = [];
-plt.clf()
-plt.spy(A,markersize=3)
+# plt.clf()
+# plt.spy(A,markersize=3)
 
 ## ========================================================================
 #                       Apply boundary conditions
 # =========================================================================
-b[bound_Ind_All] = bound_Val_All[bound_Ind_All];
+b[bound_Ind_All] += bound_Val_All[bound_Ind_All];
 
 
 # ========================================================================
@@ -411,7 +419,7 @@ tic = time.time()
 solve = linalg.factorized(A)
 print('Factorization: %.1fs' % (time.time()-tic))
 tic = time.time()
-solve(b)
+x = solve(b)
 print('Solve: %.1fs' % (time.time()-tic))
 
 
@@ -419,33 +427,45 @@ print('Solve: %.1fs' % (time.time()-tic))
 
 
 
-## ========================================================================
-#                               Post-processing
+#%%  ========================================================================
+#                               Visualization
 # =========================================================================
 
-# Vx = x(Num_Vx);
-# Vy = x(Num_Vy);
-# P  = x(Num_P);
+Vx = x[Num_Vx];
+Vy = x[Num_Vy];
+P  = x[Num_P];
 
-# ## plt.plot
-# clf
-# Vxplt.plot = reshape(Vx,size(XXsx));
-# X = reshape(XXsx,nVx,1);
-# Y = reshape(YYsx,nVx,1);
-# # Pplt.plot = reshape(P,size(XXsP));
-# # X = reshape(XXsP,nP,1);
-# # Y = reshape(YYsP,nP,1);
+## plt.plot
+plt.clf()
+Vxplot = np.reshape(Vx,XXsx.T.shape).T;
+Vyplot = np.reshape(Vy,XXsy.T.shape).T;
 
-# imagesc(X,Y,Vxplt.plot')
-# # surface(XXsx,YYsx,VxP)
-# # shading interp
-# axis equal
+Vxplot = 0.5*(Vxplot[:,:-1] + Vxplot[:,1:])
+Vyplot = 0.5*(Vyplot[:-1,:] + Vyplot[1:,:])
 
-# # pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
-# # shading interp
+
+
+# X = np.reshape(XXsx,nVx,1);
+# Y = np.reshape(YYsx,nVx,1);
+# Pplot = np.reshape(P,size(XXsP));
+# X = np.reshape(XXsP,nP,1);
+# Y = np.reshape(YYsP,nP,1);
+
+# plt.imshow(X,Y,Vxplt.plot')
+plt.imshow(Vxplot.T,origin='lower',extent=(xmin,xmax,ymin,ymax))
+r = 20
+plt.quiver(XX[::r,::r],YY[::r,::r],Vxplot[::r,::r],Vyplot[::r,::r])
+# surface(XXsx,YYsx,VxP)
+# shading interp
+plt.axis('equal')
+
+
+
+# pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
+# shading interp
 # colorbar
 
-# # caxis([-1 1])
+# caxis([-1 1])
 # end
 
 
