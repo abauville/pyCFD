@@ -198,7 +198,7 @@ Num_nodir_All[np.logical_or(bound_Type_All == 0, bound_Type_All == 1)] = -1
 bound_nVx = len(bound_Ind_VxBot) + len(bound_Ind_VxTop) + len(bound_Ind_VxLeft ) + len(bound_Ind_VxRight); # number of Vx Dirichlets equations
 bound_nVy = len(bound_Ind_VyBot) + len(bound_Ind_VyTop) + len(bound_Ind_VyRight) + len(bound_Ind_VyRight);
 bound_nP  = len(bound_Ind_P);
-no_nz = (nVx-bound_nVx)*11 + (nVy-bound_nVy)*11 + (nP-bound_nP)*4;
+no_nz = (nVx-bound_nVx)*11 + (nVy-bound_nVy)*11 + (nP-bound_nP)*5;
 # no_nz += -bound_nVx - bound_nVy - bound_nP
 # no_nz += 2*(-bound_nVx-4 - bound_nVy-4) - 2*bound_nP + 2
 
@@ -324,9 +324,19 @@ for i in range(nVx):
         loc_V[9:11]     = [Pl_Coeffs.E,    Pl_Coeffs.W];
 
 
+        # loc_J[0:3]      = Num_Vx[[Vxl.C,   Vxl.N,   Vxl.E,   ]];
+        # loc_J[3:7]      = Num_Vy[[Vyl.NE,  Vyl.NW,  Vyl.SE,  Vyl.SW]];
+        # loc_J[7:9]      = Num_P[ [Pl.E,    Pl.W]];
+
+        # loc_V[0:3]      = [Vxl_Coeffs.C,   Vxl_Coeffs.N,   Vxl_Coeffs.W];
+        # loc_V[3:7]      = [Vyl_Coeffs.NE,  Vyl_Coeffs.NW,  Vyl_Coeffs.SE,  Vyl_Coeffs.SW];
+        # loc_V[7:9]     = [Pl_Coeffs.E,    Pl_Coeffs.W];
+
+
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free
+        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
 
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
@@ -398,10 +408,17 @@ for i in range(nVy):
         loc_V[5:9]      = [Vxl_Coeffs.NE,  Vxl_Coeffs.NW,  Vxl_Coeffs.SE,  Vxl_Coeffs.SW];
         loc_V[9:11]     = [Pl_Coeffs.N,    Pl_Coeffs.S];
 
+        # loc_J[0:3]      = Num_Vy[[Vyl.C,   Vyl.N,    Vyl.E]];
+        # loc_J[3:5]     = Num_P[[Pl.N,    Pl.S]];
+
+        # loc_V[0:3]      = [Vyl_Coeffs.C,   Vyl_Coeffs.N,   Vyl_Coeffs.E];
+        # loc_V[3:5]     = [Pl_Coeffs.N,    Pl_Coeffs.S];
+
 
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free #
+        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
         Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
@@ -435,7 +452,7 @@ for i in range(nVy):
 # =========================================================================
 #                           Fill P equations
 # =========================================================================
-no_eq_l = 4
+no_eq_l = 5
 loc_J = np.zeros(no_eq_l,dtype=int);
 loc_V = np.zeros(no_eq_l);
 for i in range(nP):
@@ -443,7 +460,7 @@ for i in range(nP):
         ## ================================================================
         #                           Get local infos
         # =================================================================
-        shift = int(np.floor((i)/(nx-1))); # used to index Vy taking into account that a row vy is +1 long than a vx line
+        shift = int(np.floor((i)/(nx-1)));
         # Get numbering
         # =================================================================
         Vxl.E= nx+shift+i+1;      Vxl.W= nx+shift+i;
@@ -459,13 +476,15 @@ for i in range(nP):
         # =================================================================
         loc_J[:2]  = Num_Vx[[Vxl.E,  Vxl.W]];
         loc_J[2:4] = Num_Vy[[Vyl.N,  Vyl.S]];
+        loc_J[4]   = Num_P[i] # add diagonal term with value 0.0 (otherwise the solver raises and error)
 
-        loc_V[:] = [Vxl_Coeffs.E,   Vxl_Coeffs.W,   Vyl_Coeffs.N,   Vyl_Coeffs.S];
+        loc_V[:] = [Vxl_Coeffs.E,   Vxl_Coeffs.W,   Vyl_Coeffs.N,   Vyl_Coeffs.S, 1e-14];
 
 
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free #
+        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
         Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
@@ -512,13 +531,15 @@ plt.spy(A,markersize=3)
 # ========================================================================
                       ######     SOLVE     ######
 # =========================================================================
+# tic = time.time()
+# solve = linalg.factorized(A)
+# print('Factorization: %.1fs' % (time.time()-tic))
+# tic = time.time()
+# x = solve(b)
+# print('Solve: %.1fs' % (time.time()-tic))
 tic = time.time()
-solve = linalg.factorized(A)
-print('Factorization: %.1fs' % (time.time()-tic))
-tic = time.time()
-x = solve(b)
+x = linalg.spsolve_triangular(A,b,lower=False)
 print('Solve: %.1fs' % (time.time()-tic))
-
 
 
 
