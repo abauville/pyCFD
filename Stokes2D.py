@@ -22,8 +22,8 @@ xmin = AX[0];
 xmax = AX[1];
 ymin = AX[2];
 ymax = AX[3];
-nx = 1000;
-ny = 1000;
+nx = 300;
+ny = 300;
 nNodes = nx*ny;
 
 Kappa = 1.0;
@@ -59,7 +59,7 @@ nP = XXsP.shape[0]*XXsP.shape[1]
 Num_Vx = np.arange(0,nVx)#1:nVx;
 Num_Vy = Num_Vx[-1]+1+np.arange(0,nVy)# Num_Vx(end)+[1:nVy];
 Num_P = Num_Vy[-1]+1+np.arange(0,nP)#Num_Vy(end) +[1:nP];
-no_eq = Num_P[-1]+1;
+no_eq_ini = Num_P[-1]+1;
 
 ## ========================================================================
 #                           Physical parameters
@@ -124,39 +124,74 @@ Xf = XXsP.T.flatten()
 Yf = YYsP.T.flatten()
 plt.plot(Xf[bound_Ind_P-Num_Vy[-1]-1],Yf[bound_Ind_P-Num_Vy[-1]-1],'.w')
 
-# Set boundary values
+# Set boundary values and type
 # =========================================================================
+# Define BC types
+BC_free = -1
+BC_dirichlet = 0
+BC_dirichlet_ghost = 1
+BC_numann_ghost = 2
+BC_neumann_ghost = 3
+
 # Vx values
-bound_Val_VxBot     =  0.0*np.ones(bound_Ind_VxBot.shape);
-bound_Val_VxTop     =  0.0*np.ones(bound_Ind_VxTop.shape);
-bound_Val_VxLeft    =  1.0*np.ones(bound_Ind_VxLeft.shape);
-bound_Val_VxRight   = -1.0*np.ones(bound_Ind_VxRight.shape);
+bound_Val_VxBot      =  0.0*np.ones(bound_Ind_VxBot.shape);
+bound_Val_VxTop      =  0.0*np.ones(bound_Ind_VxTop.shape);
+bound_Val_VxLeft     =  1.0*np.ones(bound_Ind_VxLeft.shape);
+bound_Val_VxRight    = -1.0*np.ones(bound_Ind_VxRight.shape);
+# Vx types
+bound_Type_VxBot     = BC_dirichlet * np.ones(bound_Ind_VxBot.shape,dtype=int);
+bound_Type_VxTop     = BC_dirichlet * np.ones(bound_Ind_VxTop.shape,dtype=int);
+bound_Type_VxLeft    = BC_dirichlet * np.ones(bound_Ind_VxLeft.shape,dtype=int);
+bound_Type_VxRight   = BC_dirichlet * np.ones(bound_Ind_VxRight.shape,dtype=int);
+
 
 # Vy values
-bound_Val_VyBot     = -1.0*np.ones(bound_Ind_VyBot.shape);
-bound_Val_VyTop     =  1.0*np.ones(bound_Ind_VyTop.shape);
-bound_Val_VyLeft    =  0.0*np.ones(bound_Ind_VyLeft.shape);
-bound_Val_VyRight   =  0.0*np.ones(bound_Ind_VyRight.shape);
+bound_Val_VyBot      = -1.0*np.ones(bound_Ind_VyBot.shape);
+bound_Val_VyTop      =  1.0*np.ones(bound_Ind_VyTop.shape);
+bound_Val_VyLeft     =  0.0*np.ones(bound_Ind_VyLeft.shape);
+bound_Val_VyRight    =  0.0*np.ones(bound_Ind_VyRight.shape);
+# Vy types
+bound_Type_VyBot     = BC_dirichlet * np.ones(bound_Ind_VyBot.shape,dtype=int);
+bound_Type_VyTop     = BC_dirichlet * np.ones(bound_Ind_VyTop.shape,dtype=int);
+bound_Type_VyLeft    = BC_dirichlet * np.ones(bound_Ind_VyLeft.shape,dtype=int);
+bound_Type_VyRight   = BC_dirichlet * np.ones(bound_Ind_VyRight.shape,dtype=int);
 
 # P values
-bound_Val_P         = np.zeros(bound_Ind_P.shape);
+bound_Val_P          = np.zeros(bound_Ind_P.shape);
+# P types
+bound_Type_P         = BC_dirichlet * np.ones(bound_Ind_P.shape,dtype=int);
 
 # Fill the IndAll and ValAll boundary vectors
 # =========================================================================
-bound_Ind_All = np.zeros(no_eq,dtype=bool);
-bound_Val_All = np.zeros(no_eq);
+bound_Ind_All = np.zeros(no_eq_ini,dtype=bool);
+bound_Val_All = np.zeros(no_eq_ini);
+bound_Type_All = BC_free * np.ones(no_eq_ini,dtype=int);
+
 bound_Ind_list = [bound_Ind_VxBot, bound_Ind_VxTop, bound_Ind_VxLeft, bound_Ind_VxRight,
                   bound_Ind_VyBot, bound_Ind_VyTop, bound_Ind_VyLeft, bound_Ind_VyRight,
                   bound_Ind_P]
 bound_Val_list = [bound_Val_VxBot, bound_Val_VxTop, bound_Val_VxLeft, bound_Val_VxRight,
                   bound_Val_VyBot, bound_Val_VyTop, bound_Val_VyLeft, bound_Val_VyRight,
                   bound_Val_P]
+bound_Type_list = [bound_Type_VxBot, bound_Type_VxTop, bound_Type_VxLeft, bound_Type_VxRight,
+                   bound_Type_VyBot, bound_Type_VyTop, bound_Type_VyLeft, bound_Type_VyRight,
+                   bound_Type_P]
+no_eq = no_eq_ini
 
+#%%
+Num_nodir_All = np.ones(no_eq_ini,dtype=int);
 for iF in range(len(bound_Ind_list)):
     Ind = bound_Ind_list[iF]; #Ind = bound_Ind_(Fields{iF});
-    bound_Ind_All[Ind] = True;
-    bound_Val_All[Ind] = bound_Val_list[iF];
+    bound_Ind_All[Ind]  = True;
+    bound_Val_All[Ind]  = bound_Val_list[iF];
+    bound_Type_All[Ind] = bound_Type_list[iF];
+    Num_nodir_All[Ind] = np.logical_not(np.logical_or(bound_Type_list[iF] == 0, bound_Type_list[iF] == 1));
+    no_eq -= len(Ind)
 
+Num_nodir_All = np.cumsum(Num_nodir_All)-1
+Num_nodir_All[np.logical_or(bound_Type_All == 0, bound_Type_All == 1)] = -1
+# print(Num_nodir_All)
+#%%
 
 # Get number of non-zeros
 # =========================================================================
@@ -164,7 +199,33 @@ bound_nVx = len(bound_Ind_VxBot) + len(bound_Ind_VxTop) + len(bound_Ind_VxLeft )
 bound_nVy = len(bound_Ind_VyBot) + len(bound_Ind_VyTop) + len(bound_Ind_VyRight) + len(bound_Ind_VyRight);
 bound_nP  = len(bound_Ind_P);
 no_nz = (nVx-bound_nVx)*11 + (nVy-bound_nVy)*11 + (nP-bound_nP)*4;
-no_nz = no_nz + bound_nVx  + bound_nVy + bound_nP; # add diagonal terms
+# no_nz += -bound_nVx - bound_nVy - bound_nP
+# no_nz += 2*(-bound_nVx-4 - bound_nVy-4) - 2*bound_nP + 2
+
+## Create numbering without dirichlet
+Num_Vx_nodir = np.ones(Num_Vx.shape,dtype=int)
+Num_Vx_nodir[np.logical_or(bound_Type_All[:nVx] == 0,
+                           bound_Type_All[:nVx] == 1)] = 0
+Num_Vx_nodir = np.cumsum(Num_Vx_nodir) - 1
+Num_Vx_nodir[np.logical_or(bound_Type_All[:nVx] == 0,
+                           bound_Type_All[:nVx] == 1)] = -1
+
+Num_Vy_nodir = np.ones(Num_Vy.shape,dtype=int)
+Num_Vy_nodir[np.logical_or(bound_Type_All[nVx:nVx+nVy] == 0,
+                           bound_Type_All[nVx:nVx+nVy] == 1)] = 0
+Num_Vy_nodir = np.cumsum(Num_Vy_nodir) - 1
+Num_Vy_nodir[np.logical_or(bound_Type_All[nVx:nVx+nVy] == 0,
+                           bound_Type_All[nVx:nVx+nVy] == 1)] = -1
+
+Num_P_nodir = np.ones(Num_P.shape,dtype=int)
+Num_P_nodir[np.logical_or(bound_Type_All[nVx+nVy:nVx+nVy+nP] == 0,
+                          bound_Type_All[nVx+nVy:nVx+nVy+nP] == 1)] = 0
+Num_P_nodir = np.cumsum(Num_P_nodir) - 1
+Num_P_nodir[np.logical_or(bound_Type_All[nVx+nVy:nVx+nVy+nP] == 0,
+                           bound_Type_All[nVx+nVy:nVx+nVy+nP] == 1)] = -1
+
+# 1736
+# no_nz = no_nz + bound_nVx  + bound_nVy + bound_nP; # add diagonal terms
 
 ## ========================================================================
 #                           Allocate memory
@@ -215,10 +276,11 @@ tic = time.time()
 #                           Fill Vx equations
 # =========================================================================
 no_eq_l   = 11; # number of local equations
-loc_J = np.zeros(no_eq_l);
+loc_J = np.zeros(no_eq_l,dtype=int);
 loc_V = np.zeros(no_eq_l);
 for i in range(nVx):
-    if  not bound_Ind_All[Num_Vx[i]]: # Free nodes
+    # if  not bound_Ind_All[Num_Vx[i]]: # Free nodes
+    if  bound_Type_All[Num_Vx[i]] == BC_free: # Free nodes
         ## ================================================================
         #                           Get local infos
         # =================================================================
@@ -251,9 +313,7 @@ for i in range(nVx):
         Pl_Coeffs.E= -Kappa/dx;           Pl_Coeffs.W= Kappa/dx;
 
 
-
-        ## ================================================================
-        #               Fill local and global sparse triplets
+        # Fill local sparse triplets
         # =================================================================
         loc_J[0:5]      = Num_Vx[[Vxl.C,   Vxl.N,   Vxl.S,   Vxl.E,   Vxl.W]];
         loc_J[5:9]      = Num_Vy[[Vyl.NE,  Vyl.NW,  Vyl.SE,  Vyl.SW]];
@@ -263,22 +323,30 @@ for i in range(nVx):
         loc_V[5:9]      = [Vyl_Coeffs.NE,  Vyl_Coeffs.NW,  Vyl_Coeffs.SE,  Vyl_Coeffs.SW];
         loc_V[9:11]     = [Pl_Coeffs.E,    Pl_Coeffs.W];
 
-        Jsp[nzC+np.arange(0,11)] = loc_J;
+
+        # Fill global sparse triplets
+        # =================================================================
+        I = bound_Type_All[loc_J] == BC_free
+        l = len(loc_J[I])
+
+        Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
         Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
-        Vsp[nzC+np.arange(0,11)]  = loc_V;
+        Vsp[nzC:nzC+l]  = loc_V[I];
 
-        nzC = nzC + no_eq_l;
+        nzC = nzC + l;
 
-        ## ================================================================
-        #               Add gravity term to right-hand side
+
+        # Add gravity term to right-hand side
         # =================================================================
         b[eqC] -= 0.5*( rho[Pl.E] + rho[Pl.W] )*g[0]
-    else:            # Boundary nodes
-        Jsp[nzC] = Num_Vx[i];
-        Isp[eqC] = nzC#Num_Vx[i];
-        Vsp[nzC] =     1;
-        nzC = nzC+1;
-    eqC += 1
+
+        # Check and apply BC
+        # =================================================================
+        for loc_i in range(no_eq_l):
+            j = loc_J[loc_i]
+            if bound_Type_All[j] == BC_dirichlet:
+                b -= loc_V[loc_i] * bound_Val_All[j]
+        eqC += 1
 #   end if
 # end for
 
@@ -287,10 +355,10 @@ for i in range(nVx):
 # =========================================================================
 #                           Fill Vy equations
 # =========================================================================
-loc_J = np.zeros(11);
-loc_V = np.zeros(11);
+loc_J = np.zeros(no_eq_l,dtype=int);
+loc_V = np.zeros(no_eq_l);
 for i in range(nVy):
-    if ~bound_Ind_All[Num_Vy[i]]: # Free nodes
+    if bound_Type_All[Num_Vy[i]] == BC_free: # Free nodes
         ## ================================================================
         #                           Get local infos
         # =================================================================
@@ -320,30 +388,45 @@ for i in range(nVy):
         Pl_Coeffs.N= -Kappa/dy;           Pl_Coeffs.S= Kappa/dy;
 
 
-        ## ================================================================
-        #           Fill local and global sparse triplets
+        # Fill local sparse triplets
         # =================================================================
         loc_J[0:5]      = Num_Vy[[Vyl.C,   Vyl.N,    Vyl.S,    Vyl.E,   Vyl.W]];
         loc_J[5:9]      = Num_Vx[[Vxl.NE,  Vxl.NW,   Vxl.SE,   Vxl.SW]];
-        loc_J[9:11]     = Num_P [[Pl.N,    Pl.S]];
+        loc_J[9:11]     = Num_P[[Pl.N,    Pl.S]];
 
         loc_V[0:5]      = [Vyl_Coeffs.C,   Vyl_Coeffs.N,   Vyl_Coeffs.S,   Vyl_Coeffs.E,   Vyl_Coeffs.W];
         loc_V[5:9]      = [Vxl_Coeffs.NE,  Vxl_Coeffs.NW,  Vxl_Coeffs.SE,  Vxl_Coeffs.SW];
         loc_V[9:11]     = [Pl_Coeffs.N,    Pl_Coeffs.S];
 
-        Jsp[nzC+np.arange(0,11)]  = loc_J;
-        Isp[eqC]  = nzC#Num_Vy[i]#*np.ones(11);
-        Vsp[nzC+np.arange(0,11)]  = loc_V;
 
-        nzC = nzC + len(loc_J);
+        # Fill global sparse triplets
+        # =================================================================
+        I = bound_Type_All[loc_J] == BC_free #
+        l = len(loc_J[I])
+        Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
+        Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
+        Vsp[nzC:nzC+l]  = loc_V[I];
 
+        nzC = nzC + l;
+
+
+        # Add gravity term to right-hand side
+        # =================================================================
         b[eqC] -= 0.5*( rho[Pl.N] + rho[Pl.S] )*g[1]
-    else: # Boundary nodes
-        Jsp[nzC] = Num_Vy[i];
-        Isp[eqC] = nzC#Num_Vy[i];
-        Vsp[nzC] =     1;
-        nzC = nzC+1;
-    eqC += 1
+
+
+        # Check and apply BC
+        # =================================================================
+        for loc_i in range(no_eq_l):
+            j = loc_J[loc_i]
+            if bound_Type_All[j] == BC_dirichlet:
+                b -= loc_V[loc_i] * bound_Val_All[j]
+    # elif bound_Type_All[Num_Vy[i]] == BC_dirichlet: # Boundary nodes
+    #     Jsp[nzC] = Num_Vy[i];
+    #     Isp[eqC] = nzC#Num_Vy[i];
+    #     Vsp[nzC] =     1;
+    #     nzC = nzC+1;
+        eqC += 1
 #   end if
 # end for
 
@@ -352,10 +435,11 @@ for i in range(nVy):
 # =========================================================================
 #                           Fill P equations
 # =========================================================================
-loc_J = np.zeros(4);
-loc_V = np.zeros(4);
+no_eq_l = 4
+loc_J = np.zeros(no_eq_l,dtype=int);
+loc_V = np.zeros(no_eq_l);
 for i in range(nP):
-    if ~bound_Ind_All[Num_P[i]]: # Free nodes
+    if bound_Type_All[Num_P[i]] == BC_free: # Free nodes
         ## ================================================================
         #                           Get local infos
         # =================================================================
@@ -371,45 +455,58 @@ for i in range(nP):
         Vyl_Coeffs.N = 1.0/dy;    Vyl_Coeffs.S = -1.0/dy;
 
 
-        ## ================================================================
-        #               Fill local and global sparse triplets
+        # Fill local sparse triplets
         # =================================================================
         loc_J[:2]  = Num_Vx[[Vxl.E,  Vxl.W]];
         loc_J[2:4] = Num_Vy[[Vyl.N,  Vyl.S]];
 
-        loc_V = [Vxl_Coeffs.E,   Vxl_Coeffs.W,   Vyl_Coeffs.N,   Vyl_Coeffs.S];
+        loc_V[:] = [Vxl_Coeffs.E,   Vxl_Coeffs.W,   Vyl_Coeffs.N,   Vyl_Coeffs.S];
 
-        Jsp[nzC+np.arange(0,4)]  = loc_J;
-        Isp[eqC]  = nzC#Num_P[i]#*np.ones(4);
-        Vsp[nzC+np.arange(0,4)]  = loc_V;
 
-        nzC = nzC + len(loc_J);
-    else:        # boundary nodes
-        Jsp[nzC] = Num_P[i];
-        Isp[eqC] = nzC#Num_P[i];
-        Vsp[nzC] =     1;
-        nzC = nzC+1;
-    eqC += 1
+        # Fill global sparse triplets
+        # =================================================================
+        I = bound_Type_All[loc_J] == BC_free #
+        l = len(loc_J[I])
+        Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
+        Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
+        Vsp[nzC:nzC+l]  = loc_V[I];
+
+        nzC = nzC + l;
+
+        # Check and apply BC
+        # =================================================================
+        for loc_i in range(no_eq_l):
+            j = loc_J[loc_i]
+            if bound_Type_All[j] == BC_dirichlet:
+                b -= loc_V[loc_i] * bound_Val_All[j]
+        eqC += 1
   # end if
 # end for
+
+# Update no_nz and trim the end of Vsp etc... (initially overallocated)
+no_nz = nzC
+Isp[-1] = no_nz
+Jsp = Jsp[:no_nz]
+Vsp = Vsp[:no_nz]
 print('Triplet filling: %.1fs' % (time.time()-tic))
 
 ## ========================================================================
 #                           Assemble stiffness
 # =========================================================================
 tic = time.time()
+
 A = sp.csr_matrix((Vsp, Jsp, Isp), shape=(no_eq, no_eq))
 print('Assembly: %.1fs\n' % (time.time()-tic))
 # Isp = [];
 # Jsp = [];
 # V = [];
-# plt.clf()
-# plt.spy(A,markersize=3)
+plt.clf()
+plt.spy(A,markersize=3)
 
-## ========================================================================
-#                       Apply boundary conditions
-# =========================================================================
-b[bound_Ind_All] += bound_Val_All[bound_Ind_All];
+# ## ========================================================================
+# #                       Apply boundary conditions
+# # =========================================================================
+# b[bound_Ind_All] += bound_Val_All[bound_Ind_All];
 
 
 # ========================================================================
@@ -427,46 +524,46 @@ print('Solve: %.1fs' % (time.time()-tic))
 
 
 
-#%%  ========================================================================
-#                               Visualization
-# =========================================================================
+# #%%  ========================================================================
+# #                               Visualization
+# # =========================================================================
 
-Vx = x[Num_Vx];
-Vy = x[Num_Vy];
-P  = x[Num_P];
+# Vx = x[Num_Vx];
+# Vy = x[Num_Vy];
+# P  = x[Num_P];
 
-## plt.plot
-plt.clf()
-Vxplot = np.reshape(Vx,XXsx.T.shape).T;
-Vyplot = np.reshape(Vy,XXsy.T.shape).T;
+# ## plt.plot
+# plt.clf()
+# Vxplot = np.reshape(Vx,XXsx.T.shape).T;
+# Vyplot = np.reshape(Vy,XXsy.T.shape).T;
 
-Vxplot = 0.5*(Vxplot[:,:-1] + Vxplot[:,1:])
-Vyplot = 0.5*(Vyplot[:-1,:] + Vyplot[1:,:])
-
-
-
-# X = np.reshape(XXsx,nVx,1);
-# Y = np.reshape(YYsx,nVx,1);
-# Pplot = np.reshape(P,size(XXsP));
-# X = np.reshape(XXsP,nP,1);
-# Y = np.reshape(YYsP,nP,1);
-
-# plt.imshow(X,Y,Vxplt.plot')
-plt.imshow(Vxplot.T,origin='lower',extent=(xmin,xmax,ymin,ymax))
-r = 20
-plt.quiver(XX[::r,::r],YY[::r,::r],Vxplot[::r,::r],Vyplot[::r,::r])
-# surface(XXsx,YYsx,VxP)
-# shading interp
-plt.axis('equal')
+# Vxplot = 0.5*(Vxplot[:,:-1] + Vxplot[:,1:])
+# Vyplot = 0.5*(Vyplot[:-1,:] + Vyplot[1:,:])
 
 
 
-# pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
-# shading interp
-# colorbar
+# # X = np.reshape(XXsx,nVx,1);
+# # Y = np.reshape(YYsx,nVx,1);
+# # Pplot = np.reshape(P,size(XXsP));
+# # X = np.reshape(XXsP,nP,1);
+# # Y = np.reshape(YYsP,nP,1);
 
-# caxis([-1 1])
-# end
+# # plt.imshow(X,Y,Vxplt.plot')
+# plt.imshow(Vxplot.T,origin='lower',extent=(xmin,xmax,ymin,ymax))
+# r = 20
+# plt.quiver(XX[::r,::r],YY[::r,::r],Vxplot[::r,::r],Vyplot[::r,::r])
+# # surface(XXsx,YYsx,VxP)
+# # shading interp
+# plt.axis('equal')
+
+
+
+# # pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
+# # shading interp
+# # colorbar
+
+# # caxis([-1 1])
+# # end
 
 
 
