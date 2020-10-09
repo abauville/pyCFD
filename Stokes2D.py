@@ -22,8 +22,8 @@ xmin = AX[0];
 xmax = AX[1];
 ymin = AX[2];
 ymax = AX[3];
-nx = 300;
-ny = 300;
+nx = 5;
+ny = 5;
 nNodes = nx*ny;
 
 Kappa = 1.0;
@@ -199,33 +199,7 @@ bound_nVx = len(bound_Ind_VxBot) + len(bound_Ind_VxTop) + len(bound_Ind_VxLeft )
 bound_nVy = len(bound_Ind_VyBot) + len(bound_Ind_VyTop) + len(bound_Ind_VyRight) + len(bound_Ind_VyRight);
 bound_nP  = len(bound_Ind_P);
 no_nz = (nVx-bound_nVx)*11 + (nVy-bound_nVy)*11 + (nP-bound_nP)*5;
-# no_nz += -bound_nVx - bound_nVy - bound_nP
-# no_nz += 2*(-bound_nVx-4 - bound_nVy-4) - 2*bound_nP + 2
 
-## Create numbering without dirichlet
-Num_Vx_nodir = np.ones(Num_Vx.shape,dtype=int)
-Num_Vx_nodir[np.logical_or(bound_Type_All[:nVx] == 0,
-                           bound_Type_All[:nVx] == 1)] = 0
-Num_Vx_nodir = np.cumsum(Num_Vx_nodir) - 1
-Num_Vx_nodir[np.logical_or(bound_Type_All[:nVx] == 0,
-                           bound_Type_All[:nVx] == 1)] = -1
-
-Num_Vy_nodir = np.ones(Num_Vy.shape,dtype=int)
-Num_Vy_nodir[np.logical_or(bound_Type_All[nVx:nVx+nVy] == 0,
-                           bound_Type_All[nVx:nVx+nVy] == 1)] = 0
-Num_Vy_nodir = np.cumsum(Num_Vy_nodir) - 1
-Num_Vy_nodir[np.logical_or(bound_Type_All[nVx:nVx+nVy] == 0,
-                           bound_Type_All[nVx:nVx+nVy] == 1)] = -1
-
-Num_P_nodir = np.ones(Num_P.shape,dtype=int)
-Num_P_nodir[np.logical_or(bound_Type_All[nVx+nVy:nVx+nVy+nP] == 0,
-                          bound_Type_All[nVx+nVy:nVx+nVy+nP] == 1)] = 0
-Num_P_nodir = np.cumsum(Num_P_nodir) - 1
-Num_P_nodir[np.logical_or(bound_Type_All[nVx+nVy:nVx+nVy+nP] == 0,
-                           bound_Type_All[nVx+nVy:nVx+nVy+nP] == 1)] = -1
-
-# 1736
-# no_nz = no_nz + bound_nVx  + bound_nVy + bound_nP; # add diagonal terms
 
 ## ========================================================================
 #                           Allocate memory
@@ -237,7 +211,7 @@ Num_P_nodir[np.logical_or(bound_Type_All[nVx+nVy:nVx+nVy+nP] == 0,
 Isp = np.zeros(no_eq+1,dtype=int); Isp[-1] = no_nz
 Jsp = np.zeros(no_nz,dtype=int);
 Vsp = np.zeros(no_nz);
-b   = np.zeros(no_eq);
+RHS = np.zeros(no_eq);
 
 
 # Initialize structures for local numbering and coeffs
@@ -323,6 +297,8 @@ for i in range(nVx):
         loc_V[5:9]      = [Vyl_Coeffs.NE,  Vyl_Coeffs.NW,  Vyl_Coeffs.SE,  Vyl_Coeffs.SW];
         loc_V[9:11]     = [Pl_Coeffs.E,    Pl_Coeffs.W];
 
+        # print(loc_V)
+
 
         # loc_J[0:3]      = Num_Vx[[Vxl.C,   Vxl.N,   Vxl.E,   ]];
         # loc_J[3:7]      = Num_Vy[[Vyl.NE,  Vyl.NW,  Vyl.SE,  Vyl.SW]];
@@ -336,7 +312,7 @@ for i in range(nVx):
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free
-        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
+        # I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
 
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
@@ -348,14 +324,15 @@ for i in range(nVx):
 
         # Add gravity term to right-hand side
         # =================================================================
-        b[eqC] -= 0.5*( rho[Pl.E] + rho[Pl.W] )*g[0]
+        RHS[eqC] -= 0.5*( rho[Pl.E] + rho[Pl.W] )*g[0]
 
         # Check and apply BC
         # =================================================================
         for loc_i in range(no_eq_l):
             j = loc_J[loc_i]
             if bound_Type_All[j] == BC_dirichlet:
-                b -= loc_V[loc_i] * bound_Val_All[j]
+                RHS[eqC] -= loc_V[loc_i] * bound_Val_All[j]
+
         eqC += 1
 #   end if
 # end for
@@ -408,6 +385,9 @@ for i in range(nVy):
         loc_V[5:9]      = [Vxl_Coeffs.NE,  Vxl_Coeffs.NW,  Vxl_Coeffs.SE,  Vxl_Coeffs.SW];
         loc_V[9:11]     = [Pl_Coeffs.N,    Pl_Coeffs.S];
 
+        # print(loc_V)
+
+
         # loc_J[0:3]      = Num_Vy[[Vyl.C,   Vyl.N,    Vyl.E]];
         # loc_J[3:5]     = Num_P[[Pl.N,    Pl.S]];
 
@@ -418,7 +398,7 @@ for i in range(nVy):
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free #
-        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
+        # I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
         Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
@@ -429,7 +409,7 @@ for i in range(nVy):
 
         # Add gravity term to right-hand side
         # =================================================================
-        b[eqC] -= 0.5*( rho[Pl.N] + rho[Pl.S] )*g[1]
+        RHS[eqC] -= 0.5*( rho[Pl.N] + rho[Pl.S] )*g[1]
 
 
         # Check and apply BC
@@ -437,7 +417,7 @@ for i in range(nVy):
         for loc_i in range(no_eq_l):
             j = loc_J[loc_i]
             if bound_Type_All[j] == BC_dirichlet:
-                b -= loc_V[loc_i] * bound_Val_All[j]
+                RHS[eqC] -= loc_V[loc_i] * bound_Val_All[j]
     # elif bound_Type_All[Num_Vy[i]] == BC_dirichlet: # Boundary nodes
     #     Jsp[nzC] = Num_Vy[i];
     #     Isp[eqC] = nzC#Num_Vy[i];
@@ -480,11 +460,13 @@ for i in range(nP):
 
         loc_V[:] = [Vxl_Coeffs.E,   Vxl_Coeffs.W,   Vyl_Coeffs.N,   Vyl_Coeffs.S, 1e-14];
 
+        # print(loc_V)
+
 
         # Fill global sparse triplets
         # =================================================================
         I = bound_Type_All[loc_J] == BC_free #
-        I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
+        # I[Num_nodir_All[loc_J]<eqC] = False # To select only the upper triangular matrix
         l = len(loc_J[I])
         Jsp[nzC:nzC+l] = Num_nodir_All[loc_J[I]];
         Isp[eqC]  = nzC#Num_Vx[i]#*np.ones(no_eq_l);
@@ -497,7 +479,7 @@ for i in range(nP):
         for loc_i in range(no_eq_l):
             j = loc_J[loc_i]
             if bound_Type_All[j] == BC_dirichlet:
-                b -= loc_V[loc_i] * bound_Val_All[j]
+                RHS[eqC] -= loc_V[loc_i] * bound_Val_All[j]
         eqC += 1
   # end if
 # end for
@@ -515,6 +497,7 @@ print('Triplet filling: %.1fs' % (time.time()-tic))
 tic = time.time()
 
 A = sp.csr_matrix((Vsp, Jsp, Isp), shape=(no_eq, no_eq))
+# A = sp.tril(A)
 print('Assembly: %.1fs\n' % (time.time()-tic))
 # Isp = [];
 # Jsp = [];
@@ -535,56 +518,61 @@ plt.spy(A,markersize=3)
 # solve = linalg.factorized(A)
 # print('Factorization: %.1fs' % (time.time()-tic))
 # tic = time.time()
-# x = solve(b)
+# x = solve(RHS)
 # print('Solve: %.1fs' % (time.time()-tic))
 tic = time.time()
-x = linalg.spsolve_triangular(A,b,lower=False)
+x = linalg.spsolve(A,RHS)
+# x = linalg.spsolve_triangular(A,RHS,lower=True)
 print('Solve: %.1fs' % (time.time()-tic))
 
 
 
 
 
-# #%%  ========================================================================
-# #                               Visualization
-# # =========================================================================
+#%%  ========================================================================
+#                               Visualization
+# =========================================================================
 
-# Vx = x[Num_Vx];
-# Vy = x[Num_Vy];
-# P  = x[Num_P];
+Vx = x[Num_nodir_All[Num_Vx]];
+Vy = x[Num_nodir_All[Num_Vy]];
+P  = x[Num_nodir_All[Num_P]];
 
-# ## plt.plot
-# plt.clf()
-# Vxplot = np.reshape(Vx,XXsx.T.shape).T;
-# Vyplot = np.reshape(Vy,XXsy.T.shape).T;
+Vx[bound_Ind_All[:nVx]] = (bound_Val_All[:nVx])[bound_Ind_All[:nVx]]
+Vy[bound_Ind_All[nVx:nVx+nVy]] = (bound_Val_All[nVx:nVx+nVy])[bound_Ind_All[nVx:nVx+nVy]]
+P [bound_Ind_All[nVx+nVy:]] = (bound_Val_All[nVx+nVy:])[bound_Ind_All[nVx+nVy:]]
 
-# Vxplot = 0.5*(Vxplot[:,:-1] + Vxplot[:,1:])
-# Vyplot = 0.5*(Vyplot[:-1,:] + Vyplot[1:,:])
+## plt.plot
+plt.clf()
+Vxplot = np.reshape(Vx,XXsx.T.shape).T;
+Vyplot = np.reshape(Vy,XXsy.T.shape).T;
 
-
-
-# # X = np.reshape(XXsx,nVx,1);
-# # Y = np.reshape(YYsx,nVx,1);
-# # Pplot = np.reshape(P,size(XXsP));
-# # X = np.reshape(XXsP,nP,1);
-# # Y = np.reshape(YYsP,nP,1);
-
-# # plt.imshow(X,Y,Vxplt.plot')
-# plt.imshow(Vxplot.T,origin='lower',extent=(xmin,xmax,ymin,ymax))
-# r = 20
-# plt.quiver(XX[::r,::r],YY[::r,::r],Vxplot[::r,::r],Vyplot[::r,::r])
-# # surface(XXsx,YYsx,VxP)
-# # shading interp
-# plt.axis('equal')
+Vxplot = 0.5*(Vxplot[:,:-1] + Vxplot[:,1:])
+Vyplot = 0.5*(Vyplot[:-1,:] + Vyplot[1:,:])
 
 
 
-# # pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
-# # shading interp
-# # colorbar
+# X = np.reshape(XXsx,nVx,1);
+# Y = np.reshape(YYsx,nVx,1);
+# Pplot = np.reshape(P,size(XXsP));
+# X = np.reshape(XXsP,nP,1);
+# Y = np.reshape(YYsP,nP,1);
 
-# # caxis([-1 1])
-# # end
+# plt.imshow(X,Y,Vxplt.plot')
+plt.imshow(Vxplot.T,origin='lower',extent=(xmin,xmax,ymin,ymax))
+r = 1
+plt.quiver(XX[::r,::r],YY[::r,::r],Vxplot[::r,::r],Vyplot[::r,::r])
+# surface(XXsx,YYsx,VxP)
+# shading interp
+plt.axis('equal')
+
+
+
+# pcolor(XXsx(1:end,:),YYsx(1:end,:),VxP(1:end,:))
+# shading interp
+# colorbar
+
+# caxis([-1 1])
+# end
 
 
 
